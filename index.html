@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ponto Eletrônico</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Estilos personalizados */
+        body {
+            background-color: #343a40;
+            color: #fff;
+        }
+        .form-control-dark {
+            background-color: #343a40;
+            border-color: #343a40;
+            color: #fff;
+        }
+        .form-control-dark:focus {
+            background-color: #495057;
+            border-color: #495057;
+            color: #fff;
+        }
+        .registros-table {
+            margin-top: 20px;
+            color: #fff;
+        }
+        .registros-table th, .registros-table td {
+            vertical-align: middle;
+        }
+        #foto {
+            width: 100px;
+            height: auto;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row align-items-center mb-4">
+            <div class="col-auto">
+                <img id="foto" src="humberto.png" alt="Foto de Humberto">
+            </div>
+            <div class="col">
+                <h1 class="mb-0">Ponto Eletrônico</h1>
+            </div>
+        </div>
+        <div class="form-inline mb-4">
+            <label for="entrada-input" class="mr-2">Entrada:</label>
+            <input type="text" id="entrada-input" class="form-control form-control-dark mr-2" placeholder="HH:MM">
+            <label for="almoco-input" class="mr-2">Almoço:</label>
+            <input type="text" id="almoco-input" class="form-control form-control-dark mr-2" placeholder="HH:MM">
+            <label for="volta-input" class="mr-2">Volta do Almoço:</label>
+            <input type="text" id="volta-input" class="form-control form-control-dark mr-2" placeholder="HH:MM">
+            <label for="saida-input" class="mr-2">Saída:</label>
+            <input type="text" id="saida-input" class="form-control form-control-dark mr-2" placeholder="HH:MM">
+            <button id="batida-btn" class="btn btn-primary">Registrar Batidas</button>
+        </div>
+        <div id="registros" class="mt-4">
+            <h3>Registros</h3>
+            <table class="table registros-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Dia da Semana</th>
+                        <th>Entrada</th>
+                        <th>Almoço</th>
+                        <th>Volta do Almoço</th>
+                        <th>Saída</th>
+                        <th>Tempo de Trabalho</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="registros-body">
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="6" class="text-right">Total</th>
+                        <th id="total-tempo-trabalho"></th>
+                        <th id="saldo-horas"></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var registros = JSON.parse(localStorage.getItem("registros")) || [];
+
+            var registrosBody = document.getElementById("registros-body");
+            var totalTempoTrabalho = document.getElementById("total-tempo-trabalho");
+            var saldoHoras = document.getElementById("saldo-horas");
+
+            function atualizarTabela() {
+                registrosBody.innerHTML = "";
+                var minutosTotais = 0;
+                var saldoTotalHoras = 0;
+                registros.forEach(function(registro, index) {
+                    var tr = document.createElement("tr");
+                    var minutosTrabalhados = calcularMinutosTrabalhados(registro.entrada, registro.almoco, registro.volta, registro.saida);
+                    var saldoDiaHoras = calcularSaldoHorasDia(minutosTrabalhados, new Date(registro.data).getDay());
+                    minutosTotais += minutosTrabalhados;
+                    saldoTotalHoras += saldoDiaHoras;
+                    var diaSemana = obterDiaDaSemana(registro.data);
+                    var tempoTrabalho = formatarTempo(minutosTrabalhados);
+                    tr.innerHTML = `
+                        <td><input type="date" class="form-control form-control-dark" value="${registro.data}" onchange="editarData(${index}, this.value)"></td>
+                        <td>${diaSemana}</td>
+                        <td>${registro.entrada}</td>
+                        <td>${registro.almoco}</td>
+                        <td>${registro.volta}</td>
+                        <td>${registro.saida}</td>
+                        <td>${tempoTrabalho}</td>
+                        <td><button class="btn btn-danger btn-sm" onclick="excluirRegistro(${index})">Excluir</button></td>
+                    `;
+                    registrosBody.appendChild(tr);
+                });
+                var totalTempo = formatarTempo(minutosTotais);
+                totalTempoTrabalho.textContent = totalTempo;
+
+                saldoHoras.textContent = saldoTotalHoras.toFixed(2) + " horas";
+                saldoHoras.className = saldoTotalHoras < 0 ? "text-danger" : "text-success";
+            }
+
+            atualizarTabela();
+
+            function calcularMinutosTrabalhados(entrada, almoco, volta, saida) {
+                if (!entrada || !almoco || !volta || !saida) return 0;
+                var entradaHoras = entrada.split(':').map(Number);
+                var almocoHoras = almoco.split(':').map(Number);
+                var voltaHoras = volta.split(':').map(Number);
+                var saidaHoras = saida.split(':').map(Number);
+                var minutosTrabalhados = ((saidaHoras[0] * 60 + saidaHoras[1]) - (entradaHoras[0] * 60 + entradaHoras[1])) - ((voltaHoras[0] * 60 + voltaHoras[1]) - (almocoHoras[0] * 60 + almocoHoras[1]));
+                return minutosTrabalhados;
+            }
+
+            function formatarTempo(minutos) {
+                var horas = Math.floor(minutos / 60);
+                var minutosRestantes = minutos % 60;
+                var tempoFormatado = horas + 'h';
+
+                if (minutosRestantes > 0) {
+                    tempoFormatado += ' ' + minutosRestantes + 'min';
+                }
+
+                return tempoFormatado;
+            }
+
+            function calcularSaldoHorasDia(minutosTrabalhados, diaDaSemana) {
+                var horasTrabalhadas = minutosTrabalhados / 60;
+                var horasPadrao;
+                
+                if (diaDaSemana >= 1 && diaDaSemana <= 4) {
+                    horasPadrao = 9;
+                } else if (diaDaSemana === 5) {
+                    horasPadrao = 8;
+                } else {
+                    // Final de semana, não há horas extras
+                    return 0;
+                }
+                
+                var minutosExtras = minutosTrabalhados - (horasPadrao * 60);
+                var horasExtras = minutosExtras > 0 ? minutosExtras / 60 : 0;
+                var saldo = horasExtras;
+                return saldo;
+            }
+
+            function obterDiaDaSemana(data) {
+                var diasDaSemana = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+                var dataSplit = data.split('-');
+                var dia = parseInt(dataSplit[2], 10);
+                var mes = parseInt(dataSplit[1], 10) - 1; // Os meses são indexados a partir de 0
+                var ano = parseInt(dataSplit[0], 10);
+                var diaDaSemana = new Date(ano, mes, dia).getDay();
+                return diasDaSemana[diaDaSemana];
+            }
+
+            document.getElementById("batida-btn").addEventListener("click", function() {
+                var entradaInput = document.getElementById("entrada-input").value;
+                var almocoInput = document.getElementById("almoco-input").value;
+                var voltaInput = document.getElementById("volta-input").value;
+                var saidaInput = document.getElementById("saida-input").value;
+                
+                if (entradaInput && almocoInput && voltaInput && saidaInput) {
+                    var dataAtual = new Date();
+                    var dia = dataAtual.getDate();
+                    var mes = dataAtual.getMonth() + 1; // Os meses são indexados a partir de 0
+                    var ano = dataAtual.getFullYear();
+                    var registro = {
+                        data: `${ano}-${mes}-${dia}`,
+                        entrada: entradaInput,
+                        almoco: almocoInput,
+                        volta: voltaInput,
+                        saida: saidaInput
+                    };
+                    registros.push(registro);
+                    localStorage.setItem("registros", JSON.stringify(registros));
+                    atualizarTabela();
+                } else {
+                    alert("Por favor, insira todos os campos de batida.");
+                }
+            });
+
+            window.excluirRegistro = function(index) {
+                registros.splice(index, 1);
+                localStorage.setItem("registros", JSON.stringify(registros));
+                atualizarTabela();
+            };
+
+            window.editarData = function(index, novaData) {
+                registros[index].data = novaData;
+                localStorage.setItem("registros", JSON.stringify(registros));
+                atualizarTabela();
+            };
+        });
+    </script>
+</body>
+</html>
